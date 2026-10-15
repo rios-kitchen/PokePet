@@ -371,9 +371,22 @@
         el('div', { class: 'n' }, petName(p.id)),
         el('div', { class: 'l' }, t('poke.level', { n: lv })),
         el('div', { class: 'bar' }, el('div', { style: `width:${pct}%` })),
-        skinSelect(p));
+        skinSelect(p),
+        creditLines(state.skins[p.id]?.credits));
       grid.append(card);
     }
+  }
+
+  /** PMD SpriteCollab artists (CC BY-NC 4.0 attribution) for a card. */
+  function creditLines(c) {
+    if (!c) return null;
+    const who = (cr) => cr.names.join(', ') + (cr.more ? ` ${t('credit.more', { n: cr.more })}` : '');
+    const lines = [];
+    if (c.sprite) lines.push(t('credit.sprite', { names: who(c.sprite) }));
+    if (c.portrait) lines.push(t('credit.portrait', { names: who(c.portrait) }));
+    if (!lines.length) return null;
+    return el('div', { class: 'credit', title: `${lines.join('\n')}\n${t('credit.source')}` },
+      lines.map((l) => el('div', {}, l)));
   }
 
   function skinSelect(p) {

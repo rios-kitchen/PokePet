@@ -85,6 +85,79 @@ function parseAnimData(xml) {
   return anims;
 }
 
+// ---------- PMD SpriteCollab artist credits (CC BY-NC 4.0 requires attribution) ----------
+// tracker.json (~10 MB) lists the credit IDs per species/form; credit_names.txt maps IDs to names.
+// Both are boiled down to a small index { "0025": { sprite, shiny, portrait } } cached in pmd-credits.json.
+const CREDITS_FILE = 'pmd-credits.json';
+const CREDITS_MAX_AGE = 7 * 24 * 3600 * 1000;
+let creditIndex = null;     // { at, dex: { … } }
+let creditFetch = null;     // in-flight refresh
+
+function parseCreditNames(txt) {
+  const names = {};
+  for (const line of txt.split(/\r?\n/).slice(1)) {
+    const [name, id] = line.split('\t');
+    if (name && id) names[id.trim()] = name.trim();
+  }
+  return names;
+}
+
+/** { primary, secondary, total } → { names: [...], more: n } (unknown IDs are counted in "more"). */
+function resolveCredit(credit, names) {
+  if (!credit || !credit.primary) return null;
+  const ids = [credit.primary, ...(credit.secondary || [])];
+  const list = [...new Set(ids.map((id) => names[id]).filter(Boolean))];
+  return { names: list, more: Math.max(0, (credit.total || ids.length) - list.length) };
+}
+
+function buildCreditIndex(tracker, names) {
+  const dex = {};
+  for (const [id, e] of Object.entries(tracker)) {
+    const shinyEntry = e.subgroups?.['0000']?.subgroups?.['0001'];
+    const sprite = resolveCredit(e.sprite_credit, names);
+    dex[id] = {
+      sprite,
+      shiny: resolveCredit(shinyEntry?.sprite_credit, names) || sprite,
+      portrait: resolveCredit(e.portrait_credit, names)
+    };
+  }
+  return { at: Date.now(), dex };
+}
+
+function loadCreditIndex(dir) {
+  if (!creditIndex) {
+    try { creditIndex = JSON.parse(fs.readFileSync(path.join(dir, CREDITS_FILE), 'utf8')); } catch { creditIndex = null; }
+  }
+  return creditIndex;
+}
+
+function refreshCreditIndex(dir) {
+  if (!creditFetch) {
+    creditFetch = (async () => {
+      const [tracker, namesRes] = await Promise.all([getJson(`${PMD}/tracker.json`), net.fetch(`${PMD}/credit_names.txt`)]);
+      if (!namesRes.ok) throw new Error(`HTTP ${namesRes.status}`);
+      creditIndex = buildCreditIndex(tracker, parseCreditNames(await namesRes.text()));
+      fs.mkdirSync(dir, { recursive: true });
+      fs.writeFileSync(path.join(dir, CREDITS_FILE), JSON.stringify(creditIndex));
+      return creditIndex;
+    })().finally(() => { creditFetch = null; });
+  }
+  return creditFetch;
+}
+
+/** Credits already cached locally (no network): { sprite, shiny, portrait } or null. */
+function cachedCredits(dex, dir) {
+  return loadCreditIndex(dir)?.dex?.[dex4(dex)] || null;
+}
+
+/** Credits for a species, refreshing the cached index when it's stale or lacks the species. Never throws. */
+async function pmdCredits(dex, dir) {
+  const idx = loadCreditIndex(dir);
+  const hit = idx?.dex?.[dex4(dex)];
+  if (hit && Date.now() - idx.at < CREDITS_MAX_AGE) return hit;
+  try { return (await refreshCreditIndex(dir)).dex[dex4(dex)] || null; } catch { return hit || null; }
+}
+
 async function downloadPmd(dex, shiny, dir) {
   const base = `${PMD}/sprite/${dex4(dex)}${shiny ? '/0000/0001' : ''}`;
   const xmlBuf = await getBuffer(`${base}/AnimData.xml`);
@@ -110,6 +183,7 @@ async function downloadPmd(dex, shiny, dir) {
   }
   if (!anims.Idle && !anims.Walk) throw notFound();
   fs.writeFileSync(path.join(out, 'anims.json'), JSON.stringify(anims));
+  await pmdCredits(dex, dir);   // cache the artists' names for the panel
   return { source: 'pmd', style: 'pmd', dir: folder, v: PMD_VERSION };
 }
 
@@ -153,7 +227,8 @@ async function portrait(dex, emotion, dir) {
   if (!buf) return null;
   fs.mkdirSync(folder, { recursive: true });
   fs.writeFileSync(file, buf);   // a missing emotion is stored as its "Normal" face
+  await pmdCredits(dex, dir);    // and its artists' names
   return buf;
 }
 
-module.exports = { SOURCES, PMD_VERSION, lookupSpecies, downloadSkin, portrait };
+module.exports = { SOURCES, PMD_VERSION, lookupSpecies, downloadSkin, portrait, pmdCredits, cachedCredits };

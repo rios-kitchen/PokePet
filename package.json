@@ -1,7 +1,7 @@
 {
   "name": "poke-pet",
   "productName": "PokePet",
-  "version": "1.4.0",
+  "version": "1.5.0",
   "description": "A pixel Pokémon desktop pet with Pomodoro timer and to-do list (English / 中文).",
   "author": "Rio's Kitchen",
   "main": "main.js",

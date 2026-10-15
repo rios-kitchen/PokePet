@@ -117,6 +117,17 @@ async function ensurePmdSkins() {
       if (e.code === 'not-found' && needsDefault) store.data.skins[p.id] = { source: 'hd' };
     }
   }
+  // artist credits for sprites/portraits downloaded before credits were tracked
+  const missing = petList().find((p) => !Sources.cachedCredits(p.dex, spritesDir()));
+  if (missing && await Sources.pmdCredits(missing.dex, spritesDir())) broadcast();
+}
+
+/** PMD SpriteCollab artists for a Pokémon's sprite (if it uses a PMD sprite) and portrait. */
+function creditsOf(p) {
+  const c = Sources.cachedCredits(p.dex, spritesDir());
+  if (!c) return null;
+  const skin = skinOf(p.id);
+  return { sprite: skin.style === 'pmd' ? (skin.shiny ? c.shiny : c.sprite) : null, portrait: c.portrait };
 }
 
 const careOfActive = () => Care.careOf(store.data, S().pokemon);
@@ -147,7 +158,7 @@ function snapshot() {
     todos: d.todos,
     pets: d.pets,
     custom: d.custom.map(({ id, dex, names }) => ({ id, dex, names })),
-    skins: Object.fromEntries(petList().map((p) => [p.id, { source: skinOf(p.id).source, shiny: !!skinOf(p.id).shiny, style: skinOf(p.id).style || null }])),
+    skins: Object.fromEntries(petList().map((p) => [p.id, { source: skinOf(p.id).source, shiny: !!skinOf(p.id).shiny, style: skinOf(p.id).style || null, credits: creditsOf(p) }])),
     berries: d.berries,
     poops: d.poops.length,
     items: Care.ITEMS,
@@ -974,7 +985,9 @@ function registerIpc() {
   ipcMain.on('poop:clean', (_e, id) => cleanPoop(String(id || '')));
   ipcMain.handle('diary:portrait', async (_e, dex, emotion) => {
     try {
+      const known = !!Sources.cachedCredits(dex, spritesDir());
       const buf = await Sources.portrait(dex, emotion, spritesDir());
+      if (!known && Sources.cachedCredits(dex, spritesDir())) broadcast();
       return buf ? `data:image/png;base64,${buf.toString('base64')}` : null;
     } catch { return null; }
   });
