@@ -3,6 +3,16 @@
 A pixel Pokémon desktop pet for **macOS and Windows** with a built-in **Pomodoro timer** and **to-do list**.
 English / 中文. Everything is stored locally.
 
+> **Want more than a desktop pet and a timer?** Try
+> [**宝可宠探索 · PokePet Explorer**](https://github.com/rios-kitchen/PokePetExplorer), PokePet's big
+> sibling. It has everything here plus a QQ-Pet style raising game: choose a starter at Professor Oak's,
+> evolution, status conditions and medicine, outings with photos, fishing, daily tasks and more.
+> PokePet stays the simple one – both can be installed side by side.
+>
+> 想要的不只是桌宠和计时？试试 PokePet 的进阶版 [**宝可宠探索**](https://github.com/rios-kitchen/PokePetExplorer)：
+> 包含这里的全部功能，再加上 QQ 宠物式的养成——在大木博士那里选初始宝可梦、进化、异常状态与用药、外出合影、钓鱼、每日任务等。
+> PokePet 会继续保持简单，两个应用可以同时安装。
+
 ## Run
 
 ```bash
